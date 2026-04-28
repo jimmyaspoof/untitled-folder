@@ -1,0 +1,15 @@
+{
+  "name": "13bpz-vault-bot",
+  "version": "1.0.0",
+  "description": "13BPZ Vault Discord Bot",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
