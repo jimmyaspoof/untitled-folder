@@ -1,4 +1,4 @@
-// bot.js - 13BPZ VAULT BOT (ABSOLUTE COMPLETE VERSION - FULL SETUP)
+// bot.js - 13BPZ VAULT BOT (FULL COMPLETE VERSION)
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, SlashCommandBuilder, PermissionsBitField, ChannelType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -21,7 +21,7 @@ const SERVER_ID = "1498630455694590015";
 const leaksPath = path.join(__dirname, 'leaks');
 const db = new sqlite3.Database(path.join(__dirname, 'vault.db'));
 
-// Initialize Database
+// Database Setup
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,8 +44,40 @@ db.serialize(() => {
 
 if (!fs.existsSync(leaksPath)) fs.mkdirSync(leaksPath, { recursive: true });
 
-client.once('ready', () => {
-    console.log(`\x1b[31m[13BPZ VAULT] ${client.user.tag} - ABSOLUTE COMPLETE VERSION ACTIVE\x1b[0m`);
+client.once('ready', async () => {
+    console.log(`\x1b[31m[13BPZ VAULT] ${client.user.tag} - FULL COMPLETE VERSION LOADED\x1b[0m`);
+
+    // Force clear and re-register commands
+    await client.application.commands.set([], SERVER_ID);
+
+    const commands = [
+        new SlashCommandBuilder().setName('setup').setDescription('Full setup - creates all channels and roles (Owner only)'),
+        new SlashCommandBuilder().setName('vault').setDescription('Open normal 13 Vault'),
+        new SlashCommandBuilder().setName('boostervault').setDescription('Open Booster Leaks (Boosters only)'),
+        new SlashCommandBuilder()
+            .setName('addleak')
+            .setDescription('Add new leaks (files + videos)')
+            .addStringOption(option =>
+                option.setName('category')
+                    .setDescription('Choose category')
+                    .setRequired(true)
+                    .addChoices(
+                        { name: 'Bundles', value: 'bundles' },
+                        { name: 'Graphics Pack', value: 'graphics-pack' },
+                        { name: 'Sound Packs', value: 'sound-packs' },
+                        { name: 'Reshades', value: 'reshades' },
+                        { name: 'Intros', value: 'intros' },
+                        { name: 'Tracers', value: 'tracers' },
+                        { name: 'Other', value: 'other' },
+                        { name: 'Booster Preview', value: 'booster-preview' },
+                        { name: 'Graphic Packs', value: 'graphic-packs' },
+                        { name: 'D10 Reshades', value: 'd10-reshades' },
+                        { name: 'Extras', value: 'extras' }
+                    ))
+    ];
+
+    await client.application.commands.set(commands, SERVER_ID);
+    console.log("✅ All slash commands force registered");
 });
 
 // Auto Roles
@@ -61,7 +93,7 @@ client.on('guildMemberAdd', async (member) => {
     if (role) await member.roles.add(role);
 });
 
-// ====================== FULL /SETUP - CREATES ALL CHANNELS ======================
+// ====================== FULL /SETUP ======================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -109,53 +141,46 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             // Normal Channels
-            const normalCh = ["ticket-0027", "bundles", "graphics-pack", "sound-packs", "reshades", "intros", "tracers", "other"];
-            for (const name of normalCh) {
-                const exists = guild.channels.cache.some(c => c.name === name && c.parentId === normalCat.id);
-                if (!exists) {
-                    await guild.channels.create({ name: name, type: ChannelType.GuildText, parent: normalCat.id });
+            const normalChannels = ["ticket-0027", "bundles", "graphics-pack", "sound-packs", "reshades", "intros", "tracers", "other"];
+            for (const name of normalChannels) {
+                if (!guild.channels.cache.some(c => c.name === name && c.parentId === normalCat.id)) {
+                    await guild.channels.create({ name, type: ChannelType.GuildText, parent: normalCat.id });
                 }
             }
 
-            // All Booster Channels (matching your screenshot style)
-            const boosterCh = [
-                "BOoster-preview", "BOoster-perks", "bundles", "graphic-packs",
-                "snow-graphic-packs", "fps-graphic-packs", "sound-packs",
-                "rifle-sound-packs", "kos-sound-packs", "nvidia-amd-settings",
-                "spotify-premium", "d10-graphicpacks", "playlists",
+            // All Booster Channels
+            const boosterChannels = [
+                "BOoster-preview", "BOoster-perks", "bundles", "graphic-packs", "snow-graphic-packs",
+                "fps-graphic-packs", "sound-packs", "rifle-sound-packs", "kos-sound-packs",
+                "nvidia-amd-settings", "spotify-premium", "d10-graphicpacks", "playlists",
                 "d10-soundpacks", "d10-reshades", "extras"
             ];
 
-            for (const name of boosterCh) {
+            for (const name of boosterChannels) {
                 const fullName = `🚀 ${name}`;
-                const exists = guild.channels.cache.some(c => c.name === fullName && c.parentId === boosterCat.id);
-                if (!exists) {
-                    await guild.channels.create({
-                        name: fullName,
-                        type: ChannelType.GuildText,
-                        parent: boosterCat.id
-                    });
+                if (!guild.channels.cache.some(c => c.name === fullName && c.parentId === boosterCat.id)) {
+                    await guild.channels.create({ name: fullName, type: ChannelType.GuildText, parent: boosterCat.id });
                 }
             }
 
-            await interaction.editReply({ content: "✅ **ABSOLUTE FULL SETUP COMPLETED!**\nAll roles + All channels created." });
+            await interaction.editReply({ content: "✅ **FULL SETUP COMPLETED!**\nAll roles and all channels have been created." });
         } catch (err) {
             console.error(err);
             await interaction.editReply({ content: "❌ Setup failed. Check console." });
         }
     }
 
-    // /vault - Dynamic
+    // /vault
     if (interaction.commandName === "vault") {
         const hasRole = interaction.member.roles.cache.some(r => r.name === VAULT_ROLE_NAME);
         if (!hasRole) return interaction.reply({ content: "❌ You need the **13 Vault** role.", ephemeral: true });
 
         db.all("SELECT DISTINCT category FROM files ORDER BY category", (err, rows) => {
-            if (!rows || rows.length === 0) return interaction.reply({ content: "No leaks yet. Add some with /addleak", ephemeral: true });
+            if (!rows || rows.length === 0) return interaction.reply({ content: "No leaks yet. Use /addleak", ephemeral: true });
 
             const select = new StringSelectMenuBuilder()
                 .setCustomId("normal_vault")
-                .setPlaceholder("Select category...")
+                .setPlaceholder("Select category to leak...")
                 .addOptions(rows.map(r => ({ label: r.category.replace(/-/g, " ").toUpperCase(), value: r.category })));
 
             interaction.reply({
@@ -165,10 +190,10 @@ client.on('interactionCreate', async (interaction) => {
         });
     }
 
-    // /boostervault - Dynamic
+    // /boostervault
     if (interaction.commandName === "boostervault") {
         const isBooster = interaction.member.roles.cache.some(r => r.name === BOOSTER_ROLE_NAME);
-        if (!isBooster) return interaction.reply({ content: "❌ Booster only area.", ephemeral: true });
+        if (!isBooster) return interaction.reply({ content: "❌ This area is for Boosters only.", ephemeral: true });
 
         db.all("SELECT DISTINCT category FROM files ORDER BY category", (err, rows) => {
             if (!rows || rows.length === 0) return interaction.reply({ content: "No booster leaks yet.", ephemeral: true });
@@ -212,7 +237,7 @@ client.on('interactionCreate', async (interaction) => {
             } catch (e) { }
         }
 
-        await interaction.reply({ content: `✅ Added **${count}** files to **${category}**` });
+        await interaction.reply({ content: `✅ Added **${count}** file(s) to **${category}**` });
     }
 });
 
