@@ -1,306 +1,254 @@
-// bot.js - 13BPZ VAULT BOT with /addleak
-const {
-    Client,
-    GatewayIntentBits,
-    EmbedBuilder,
-    ActionRowBuilder,
-    StringSelectMenuBuilder,
-    PermissionsBitField,
-    ChannelType,
-    SlashCommandBuilder,
-} = require("discord.js");
-
-const fs = require("fs");
-const path = require("path");
+// bot.js - 13BPZ VAULT BOT (ABSOLUTE COMPLETE VERSION - FULL SETUP)
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, SlashCommandBuilder, PermissionsBitField, ChannelType } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.MessageContent,
-    ],
+        GatewayIntentBits.MessageContent
+    ]
 });
 
 const VAULT_ROLE_NAME = "13 Vault";
-const CATEGORY_NAME = "13 VAULT";
+const BOOSTER_ROLE_NAME = "Vault Booster";
 const OWNER_ID = "1382370095963312201";
 const SERVER_ID = "1498630455694590015";
 
-const leaksPath = path.join(__dirname, "leaks");
+const leaksPath = path.join(__dirname, 'leaks');
+const db = new sqlite3.Database(path.join(__dirname, 'vault.db'));
 
-const categories = [
-    "bundles",
-    "graphics-pack",
-    "rz-soundpacks",
-    "rp-soundpacks",
-    "tracers",
-    "rz-reshade",
-    "rp-reshade",
-    "roads",
-    "intros",
-    "intro-temps",
-    "other",
-];
+// Initialize Database
+db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename TEXT UNIQUE,
+        category TEXT,
+        filepath TEXT,
+        uploaded_by TEXT,
+        upload_date TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
 
-categories.forEach((cat) => {
-    const dir = path.join(leaksPath, cat);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    db.run(`CREATE TABLE IF NOT EXISTS downloads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id INTEGER,
+        user_id TEXT,
+        username TEXT,
+        download_date TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(file_id) REFERENCES files(id)
+    )`);
 });
 
-client.once("ready", async () => {
-    console.log(`[13BPZ VAULT] ${client.user.tag} is online`);
+if (!fs.existsSync(leaksPath)) fs.mkdirSync(leaksPath, { recursive: true });
 
-    const commands = [
-        new SlashCommandBuilder()
-            .setName("setup")
-            .setDescription("Setup 13 Vault channels and role"),
-
-        new SlashCommandBuilder()
-            .setName("vault")
-            .setDescription("Open the 13 Vault menu"),
-
-        new SlashCommandBuilder()
-            .setName("addleak")
-            .setDescription("Add a file/video to a vault category")
-            .addStringOption((option) =>
-                option
-                    .setName("category")
-                    .setDescription("Choose category")
-                    .setRequired(true)
-                    .addChoices(
-                        { name: "Bundles", value: "bundles" },
-                        { name: "Graphics Pack", value: "graphics-pack" },
-                        { name: "RZ Soundpacks", value: "rz-soundpacks" },
-                        { name: "RP Soundpacks", value: "rp-soundpacks" },
-                        { name: "Tracers", value: "tracers" },
-                        { name: "RZ Reshade", value: "rz-reshade" },
-                        { name: "RP Reshade", value: "rp-reshade" },
-                        { name: "Roads", value: "roads" },
-                        { name: "Intros", value: "intros" },
-                        { name: "Intro Temps", value: "intro-temps" },
-                        { name: "Other", value: "other" }
-                    )
-            )
-            .addAttachmentOption((option) =>
-                option.setName("file1").setDescription("Main file").setRequired(true)
-            )
-            .addAttachmentOption((option) =>
-                option.setName("file2").setDescription("Optional file/video")
-            )
-            .addAttachmentOption((option) =>
-                option.setName("file3").setDescription("Optional file/video")
-            )
-            .addAttachmentOption((option) =>
-                option.setName("file4").setDescription("Optional file/video")
-            )
-            .addAttachmentOption((option) =>
-                option.setName("file5").setDescription("Optional file/video")
-            ),
-    ];
-
-    await client.application.commands.set(commands, SERVER_ID);
-    console.log("✅ Slash commands registered");
+client.once('ready', () => {
+    console.log(`\x1b[31m[13BPZ VAULT] ${client.user.tag} - ABSOLUTE COMPLETE VERSION ACTIVE\x1b[0m`);
 });
 
-client.on("guildMemberAdd", async (member) => {
-    const role = member.guild.roles.cache.find((r) => r.name === VAULT_ROLE_NAME);
-    if (role) await member.roles.add(role).catch(() => { });
+// Auto Roles
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    if (!oldMember.premiumSince && newMember.premiumSince) {
+        const role = newMember.guild.roles.cache.find(r => r.name === BOOSTER_ROLE_NAME);
+        if (role) await newMember.roles.add(role);
+    }
 });
 
-client.on("interactionCreate", async (interaction) => {
+client.on('guildMemberAdd', async (member) => {
+    const role = member.guild.roles.cache.find(r => r.name === VAULT_ROLE_NAME);
+    if (role) await member.roles.add(role);
+});
+
+// ====================== FULL /SETUP - CREATES ALL CHANNELS ======================
+client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === "setup") {
         if (interaction.user.id !== OWNER_ID) {
-            return interaction.reply({ content: "❌ Only owner can use this.", ephemeral: true });
+            return interaction.reply({ content: "❌ Only the owner can use /setup", ephemeral: true });
         }
 
         await interaction.deferReply({ ephemeral: true });
 
-        const guild = interaction.guild;
+        try {
+            const guild = interaction.guild;
 
-        let vaultRole = guild.roles.cache.find((r) => r.name === VAULT_ROLE_NAME);
-        if (!vaultRole) {
-            vaultRole = await guild.roles.create({
-                name: VAULT_ROLE_NAME,
-                color: 0x8b0000,
-                hoist: true,
-            });
-        }
+            // Create Roles
+            let vaultRole = guild.roles.cache.find(r => r.name === VAULT_ROLE_NAME);
+            if (!vaultRole) vaultRole = await guild.roles.create({ name: VAULT_ROLE_NAME, color: 0x8B0000, hoist: true });
 
-        let category = guild.channels.cache.find(
-            (c) => c.name === CATEGORY_NAME && c.type === ChannelType.GuildCategory
-        );
+            let boosterRole = guild.roles.cache.find(r => r.name === BOOSTER_ROLE_NAME);
+            if (!boosterRole) boosterRole = await guild.roles.create({ name: BOOSTER_ROLE_NAME, color: 0xFF1493, hoist: true });
 
-        if (!category) {
-            category = await guild.channels.create({
-                name: CATEGORY_NAME,
-                type: ChannelType.GuildCategory,
-                permissionOverwrites: [
-                    { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-                    {
-                        id: vaultRole.id,
-                        allow: [
-                            PermissionsBitField.Flags.ViewChannel,
-                            PermissionsBitField.Flags.SendMessages,
-                        ],
-                    },
-                ],
-            });
-        }
-
-        const channelsToCreate = [
-            { name: "vault-psa", emoji: "📢" },
-            { name: "bundles", emoji: "📦" },
-            { name: "graphics-pack", emoji: "🖼️" },
-            { name: "rz-soundpacks", emoji: "🔊" },
-            { name: "rp-soundpacks", emoji: "🎵" },
-            { name: "tracers", emoji: "🔫" },
-            { name: "rz-reshade", emoji: "🌫️" },
-            { name: "rp-reshade", emoji: "🎨" },
-            { name: "roads", emoji: "🛣️" },
-            { name: "intros", emoji: "🎬" },
-            { name: "intro-temps", emoji: "🎥" },
-            { name: "other", emoji: "🔗" },
-        ];
-
-        for (const ch of channelsToCreate) {
-            const fullName = `${ch.emoji} ${ch.name}`;
-            const exists = guild.channels.cache.some(
-                (c) => c.name === fullName && c.parentId === category.id
-            );
-
-            if (!exists) {
-                await guild.channels.create({
-                    name: fullName,
-                    type: ChannelType.GuildText,
-                    parent: category.id,
+            // Normal Vault Category
+            let normalCat = guild.channels.cache.find(c => c.name === "13 VAULT" && c.type === ChannelType.GuildCategory);
+            if (!normalCat) {
+                normalCat = await guild.channels.create({
+                    name: "13 VAULT",
+                    type: ChannelType.GuildCategory,
+                    permissionOverwrites: [
+                        { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+                        { id: vaultRole.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+                    ]
                 });
             }
-        }
 
-        return interaction.editReply("✅ Setup complete. Channels + role created.");
+            // Booster Leaks Category
+            let boosterCat = guild.channels.cache.find(c => c.name === "BOOSTER LEAKS" && c.type === ChannelType.GuildCategory);
+            if (!boosterCat) {
+                boosterCat = await guild.channels.create({
+                    name: "BOOSTER LEAKS",
+                    type: ChannelType.GuildCategory,
+                    permissionOverwrites: [
+                        { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+                        { id: boosterRole.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+                    ]
+                });
+            }
+
+            // Normal Channels
+            const normalCh = ["ticket-0027", "bundles", "graphics-pack", "sound-packs", "reshades", "intros", "tracers", "other"];
+            for (const name of normalCh) {
+                const exists = guild.channels.cache.some(c => c.name === name && c.parentId === normalCat.id);
+                if (!exists) {
+                    await guild.channels.create({ name: name, type: ChannelType.GuildText, parent: normalCat.id });
+                }
+            }
+
+            // All Booster Channels (matching your screenshot style)
+            const boosterCh = [
+                "BOoster-preview", "BOoster-perks", "bundles", "graphic-packs",
+                "snow-graphic-packs", "fps-graphic-packs", "sound-packs",
+                "rifle-sound-packs", "kos-sound-packs", "nvidia-amd-settings",
+                "spotify-premium", "d10-graphicpacks", "playlists",
+                "d10-soundpacks", "d10-reshades", "extras"
+            ];
+
+            for (const name of boosterCh) {
+                const fullName = `🚀 ${name}`;
+                const exists = guild.channels.cache.some(c => c.name === fullName && c.parentId === boosterCat.id);
+                if (!exists) {
+                    await guild.channels.create({
+                        name: fullName,
+                        type: ChannelType.GuildText,
+                        parent: boosterCat.id
+                    });
+                }
+            }
+
+            await interaction.editReply({ content: "✅ **ABSOLUTE FULL SETUP COMPLETED!**\nAll roles + All channels created." });
+        } catch (err) {
+            console.error(err);
+            await interaction.editReply({ content: "❌ Setup failed. Check console." });
+        }
     }
 
+    // /vault - Dynamic
     if (interaction.commandName === "vault") {
-        const hasRole = interaction.member.roles.cache.some(
-            (r) => r.name === VAULT_ROLE_NAME
-        );
+        const hasRole = interaction.member.roles.cache.some(r => r.name === VAULT_ROLE_NAME);
+        if (!hasRole) return interaction.reply({ content: "❌ You need the **13 Vault** role.", ephemeral: true });
 
-        if (!hasRole) {
-            return interaction.reply({
-                content: "❌ You need the **13 Vault** role.",
-                ephemeral: true,
+        db.all("SELECT DISTINCT category FROM files ORDER BY category", (err, rows) => {
+            if (!rows || rows.length === 0) return interaction.reply({ content: "No leaks yet. Add some with /addleak", ephemeral: true });
+
+            const select = new StringSelectMenuBuilder()
+                .setCustomId("normal_vault")
+                .setPlaceholder("Select category...")
+                .addOptions(rows.map(r => ({ label: r.category.replace(/-/g, " ").toUpperCase(), value: r.category })));
+
+            interaction.reply({
+                embeds: [new EmbedBuilder().setTitle("13 VAULT").setColor(0x000000)],
+                components: [new ActionRowBuilder().addComponents(select)]
             });
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle("13 VAULT")
-            .setDescription("```Select a category```")
-            .setColor(0x000000)
-            .setFooter({ text: "13BPZ • VAULT NO LEAKING • " });
-
-        const select = new StringSelectMenuBuilder()
-            .setCustomId("vault_select")
-            .setPlaceholder("Choose category...")
-            .addOptions(
-                { label: "Bundles", value: "bundles", emoji: "📦" },
-                { label: "Graphics Pack", value: "graphics-pack", emoji: "🖼️" },
-                { label: "RZ Soundpacks", value: "rz-soundpacks", emoji: "🔊" },
-                { label: "RP Soundpacks", value: "rp-soundpacks", emoji: "🎵" },
-                { label: "Tracers", value: "tracers", emoji: "🔫" },
-                { label: "RZ Reshade", value: "rz-reshade", emoji: "🌫️" },
-                { label: "RP Reshade", value: "rp-reshade", emoji: "🎨" },
-                { label: "Roads", value: "roads", emoji: "🛣️" },
-                { label: "Intros", value: "intros", emoji: "🎬" },
-                { label: "Intro Temps", value: "intro-temps", emoji: "🎥" },
-                { label: "Other", value: "other", emoji: "🔗" }
-            );
-
-        return interaction.reply({
-            embeds: [embed],
-            components: [new ActionRowBuilder().addComponents(select)],
         });
     }
 
-    if (interaction.commandName === "addleak") {
-        if (interaction.user.id !== OWNER_ID) {
-            return interaction.reply({
-                content: "❌ Only owner can add files.",
-                ephemeral: true,
+    // /boostervault - Dynamic
+    if (interaction.commandName === "boostervault") {
+        const isBooster = interaction.member.roles.cache.some(r => r.name === BOOSTER_ROLE_NAME);
+        if (!isBooster) return interaction.reply({ content: "❌ Booster only area.", ephemeral: true });
+
+        db.all("SELECT DISTINCT category FROM files ORDER BY category", (err, rows) => {
+            if (!rows || rows.length === 0) return interaction.reply({ content: "No booster leaks yet.", ephemeral: true });
+
+            const select = new StringSelectMenuBuilder()
+                .setCustomId("booster_vault")
+                .setPlaceholder("Select booster category...")
+                .addOptions(rows.map(r => ({ label: r.category.replace(/-/g, " ").toUpperCase(), value: r.category, emoji: "🚀" })));
+
+            interaction.reply({
+                embeds: [new EmbedBuilder().setTitle("BOOSTER LEAKS").setColor(0xFF1493)],
+                components: [new ActionRowBuilder().addComponents(select)]
             });
+        });
+    }
+
+    // /addleak
+    if (interaction.commandName === "addleak") {
+        if (interaction.user.id !== OWNER_ID) return interaction.reply({ content: "❌ Owner only", ephemeral: true });
+
+        const category = interaction.options.getString('category');
+        const attachments = interaction.attachments;
+        let count = 0;
+
+        const catPath = path.join(leaksPath, category);
+        if (!fs.existsSync(catPath)) fs.mkdirSync(catPath, { recursive: true });
+
+        for (const att of attachments.values()) {
+            const safeName = `${Date.now()}-${att.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+            const filePath = path.join(catPath, safeName);
+
+            try {
+                const res = await fetch(att.url);
+                const buffer = await res.arrayBuffer();
+                fs.writeFileSync(filePath, Buffer.from(buffer));
+
+                db.run(`INSERT OR IGNORE INTO files (filename, category, filepath, uploaded_by) VALUES (?, ?, ?, ?)`,
+                    [safeName, category, filePath, interaction.user.id]);
+
+                count++;
+            } catch (e) { }
         }
 
-        await interaction.deferReply({ ephemeral: true });
-
-        const category = interaction.options.getString("category");
-        const folderPath = path.join(leaksPath, category);
-
-        const files = ["file1", "file2", "file3", "file4", "file5"]
-            .map((name) => interaction.options.getAttachment(name))
-            .filter(Boolean);
-
-        let savedCount = 0;
-
-        for (const file of files) {
-            const safeName = file.name.replace(/[<>:"/\\|?*]/g, "_");
-            const savePath = path.join(folderPath, safeName);
-
-            const response = await fetch(file.url);
-            const buffer = Buffer.from(await response.arrayBuffer());
-
-            fs.writeFileSync(savePath, buffer);
-            savedCount++;
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle("✅ File Added")
-            .setDescription(`**Category:** ${category}\n**Saved:** ${savedCount} file(s)`)
-            .setColor(0x8b0000)
-            .setTimestamp();
-
-        return interaction.editReply({ embeds: [embed] });
+        await interaction.reply({ content: `✅ Added **${count}** files to **${category}**` });
     }
 });
 
-client.on("interactionCreate", async (interaction) => {
+// Dynamic Dropdown Handler
+client.on('interactionCreate', async (interaction) => {
     if (!interaction.isStringSelectMenu()) return;
-    if (interaction.customId !== "vault_select") return;
 
     const category = interaction.values[0];
     const folderPath = path.join(leaksPath, category);
 
-    if (!fs.existsSync(folderPath)) {
-        return interaction.reply({
-            content: `❌ Folder \`leaks/${category}\` not found.`,
-            ephemeral: true,
-        });
-    }
+    if (!fs.existsSync(folderPath)) return interaction.reply({ content: "Category not found.", ephemeral: true });
 
-    const files = fs.readdirSync(folderPath).filter((f) => !f.startsWith("."));
+    const files = fs.readdirSync(folderPath).filter(f => !f.startsWith('.'));
 
-    if (files.length === 0) {
-        return interaction.reply({
-            content: `❌ No files in \`leaks/${category}\`.`,
-            ephemeral: true,
-        });
-    }
+    if (files.length === 0) return interaction.reply({ content: "No files in this category yet.", ephemeral: true });
 
-    const attachments = files.map((f) => ({
-        attachment: path.join(folderPath, f),
-        name: f,
-    }));
+    const isBooster = interaction.customId === "booster_vault";
 
     const embed = new EmbedBuilder()
-        .setTitle(`13 ${category.toUpperCase()}`)
-        .setDescription(`Sending **${files.length}** file(s).`)
-        .setColor(0x8b0000)
-        .setTimestamp();
+        .setTitle(isBooster ? `🚀 BOOSTER ${category.toUpperCase()}` : `13 ${category.toUpperCase()}`)
+        .setColor(isBooster ? 0xFF1493 : 0x8B0000)
+        .setDescription(`Sending **${files.length}** file(s)...`);
 
-    return interaction.reply({
+    await interaction.reply({
         embeds: [embed],
-        files: attachments,
+        files: files.map(f => path.join(folderPath, f))
+    });
+
+    // Track downloads
+    db.all(`SELECT id FROM files WHERE category = ?`, [category], (err, rows) => {
+        if (rows) {
+            rows.forEach(row => {
+                db.run(`INSERT INTO downloads (file_id, user_id, username) VALUES (?, ?, ?)`,
+                    [row.id, interaction.user.id, interaction.user.tag]);
+            });
+        }
     });
 });
 
