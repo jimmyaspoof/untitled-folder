@@ -1,16 +1,29 @@
 {
   "name": "13bpz-vault-bot",
+<<<<<<< HEAD
   "version": "2.0.0",
   "description": "13BPZ FiveM Vault Bot - Fully Dynamic + Database",
+=======
+  "version": "1.0.0",
+  "description": "13BPZ Vault Discord Bot",
+>>>>>>> 4476cbce7b74eaab7f26de4b03fe0f54c4f1290c
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
+<<<<<<< HEAD
     "discord.js": "^14.15.3",
     "sqlite3": "^5.1.7"
+=======
+    "discord.js": "^14.0.0"
+>>>>>>> 4476cbce7b74eaab7f26de4b03fe0f54c4f1290c
   },
   "engines": {
     "node": ">=18"
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 4476cbce7b74eaab7f26de4b03fe0f54c4f1290c
